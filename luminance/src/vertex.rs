@@ -76,7 +76,7 @@ pub enum VertexInstancing {
 pub struct VertexAttribDesc {
   /// Type of the attribute. See [`VertexAttribType`] for further details.
   pub ty: VertexAttribType,
-  /// Dimension of the attribute. It should be in 1–4. See [`VertexAttribDim`] for further details.
+  /// Dimension of the attribute. See [`VertexAttribDim`] for further details.
   pub dim: VertexAttribDim,
   /// Size in bytes that a single element of the attribute takes. That is, if your attribute has
   /// a dimension set to 2, then the unit size should be the size of a single element (not two).
@@ -114,6 +114,24 @@ pub enum VertexAttribDim {
   Dim3,
   /// 4D.
   Dim4,
+  /// 2×2 matrix.
+  Mat2,
+  /// 2×3 matrix.
+  Mat23,
+  /// 2×4 matrix.
+  Mat24,
+  /// 3×2 matrix.
+  Mat32,
+  /// 3×3 matrix.
+  Mat3,
+  /// 3×4 matrix.
+  Mat34,
+  /// 4×2 matrix.
+  Mat42,
+  /// 4×3 matrix.
+  Mat43,
+  /// 4×4 matrix.
+  Mat4,
 }
 
 /// Class of vertex attributes.
@@ -229,11 +247,20 @@ macro_rules! impl_vertex_attribute {
   };
 
   ($t:ty, $attr_ty:ident) => {
-    impl_vertex_attribute!($t, $t, $attr_ty, Dim1);
-    impl_vertex_attribute!([$t; 1], $t, $attr_ty, Dim1);
-    impl_vertex_attribute!([$t; 2], $t, $attr_ty, Dim2);
-    impl_vertex_attribute!([$t; 3], $t, $attr_ty, Dim3);
-    impl_vertex_attribute!([$t; 4], $t, $attr_ty, Dim4);
+    impl_vertex_attribute!($t, $t, $attr_ty, Dim1);                 // scalar
+    impl_vertex_attribute!([$t; 1], $t, $attr_ty, Dim1);            // scalar
+    impl_vertex_attribute!([$t; 2], $t, $attr_ty, Dim2);            // *vec2
+    impl_vertex_attribute!([$t; 3], $t, $attr_ty, Dim3);            // *vec3
+    impl_vertex_attribute!([$t; 4], $t, $attr_ty, Dim4);            // *vec4
+    impl_vertex_attribute!([[$t; 2]; 2], [$t; 2], $attr_ty, Mat2);  // 2×2 matrix
+    impl_vertex_attribute!([[$t; 2]; 3], [$t; 2], $attr_ty, Mat23); // 2×3 matrix
+    impl_vertex_attribute!([[$t; 2]; 4], [$t; 2], $attr_ty, Mat24); // 2×4 matrix
+    impl_vertex_attribute!([[$t; 3]; 2], [$t; 3], $attr_ty, Mat32); // 3×2 matrix
+    impl_vertex_attribute!([[$t; 3]; 3], [$t; 3], $attr_ty, Mat3);  // 3×3 matrix
+    impl_vertex_attribute!([[$t; 3]; 4], [$t; 3], $attr_ty, Mat34); // 3×4 matrix
+    impl_vertex_attribute!([[$t; 4]; 2], [$t; 4], $attr_ty, Mat42); // 3×2 matrix
+    impl_vertex_attribute!([[$t; 4]; 3], [$t; 4], $attr_ty, Mat43); // 3×3 matrix
+    impl_vertex_attribute!([[$t; 4]; 4], [$t; 4], $attr_ty, Mat4);  // 3×4 matrix
   };
 }
 

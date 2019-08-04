@@ -688,6 +688,15 @@ fn dim_as_size(d: &VertexAttribDim) -> GLint {
     VertexAttribDim::Dim2 => 2,
     VertexAttribDim::Dim3 => 3,
     VertexAttribDim::Dim4 => 4,
+    VertexAttribDim::Mat2 => 2,
+    VertexAttribDim::Mat23 => 3,
+    VertexAttribDim::Mat24 => 4,
+    VertexAttribDim::Mat32 => 2,
+    VertexAttribDim::Mat3 => 3,
+    VertexAttribDim::Mat34 => 4,
+    VertexAttribDim::Mat42=> 2,
+    VertexAttribDim::Mat43 => 3,
+    VertexAttribDim::Mat4 => 4,
   }
 }
 
