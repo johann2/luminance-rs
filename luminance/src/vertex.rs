@@ -76,8 +76,6 @@ pub enum VertexInstancing {
 pub struct VertexAttribDesc {
   /// Type of the attribute. See [`VertexAttribType`] for further details.
   pub ty: VertexAttribType,
-  /// Dimension of the attribute. See [`VertexAttribDim`] for further details.
-  pub dim: VertexAttribDim,
   /// Size in bytes that a single element of the attribute takes. That is, if your attribute has
   /// a dimension set to 2, then the unit size should be the size of a single element (not two).
   pub unit_size: usize,
@@ -89,49 +87,115 @@ pub struct VertexAttribDesc {
 /// Possible type of vertex attributes.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum VertexAttribType {
-  /// An integral type.
-  ///
-  /// Typically, `i32` is integral but not `u32`.
-  Integral,
-  /// An unsigned integral type.
-  ///
-  /// Typically, `u32` is unsigned but not `i32`.
-  Unsigned,
-  /// A floating point integral type.
-  Floating,
-  /// A boolean integral type.
-  Boolean,
+  // signed integral
+  Int,
+  Int2,
+  Int3,
+  Int4,
+  // unsigned int
+  UInt,
+  UInt2,
+  UInt3,
+  UInt4,
+  // floating
+  Float,
+  Float2,
+  Float3,
+  Float4,
+  Float22,
+  Float23,
+  Float24,
+  Float32,
+  Float33,
+  Float34,
+  Float42,
+  Float43,
+  Float44,
+  // boolean
+  Bool,
+  Bool2,
+  Bool3,
+  Bool4,
 }
 
-/// Possible dimension of vertex attributes.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum VertexAttribDim {
-  /// 1D.
-  Dim1,
-  /// 2D.
-  Dim2,
-  /// 3D.
-  Dim3,
-  /// 4D.
-  Dim4,
-  /// 2×2 matrix.
-  Mat2,
-  /// 2×3 matrix.
-  Mat23,
-  /// 2×4 matrix.
-  Mat24,
-  /// 3×2 matrix.
-  Mat32,
-  /// 3×3 matrix.
-  Mat3,
-  /// 3×4 matrix.
-  Mat34,
-  /// 4×2 matrix.
-  Mat42,
-  /// 4×3 matrix.
-  Mat43,
-  /// 4×4 matrix.
-  Mat4,
+impl VertexAttribType {
+  // Check whether the vertex attribute type is signed integral.
+  pub fn is_integral(self) -> bool {
+    use VertexAttribType::*;
+
+    match self {
+      Int | Int2 | Int3 | Int4 => true,
+      _ => false
+    }
+  }
+
+  // Check whether the vertex attribute type is unsigned integral.
+  pub fn is_unsigned_integral(self) -> bool {
+    use VertexAttribType::*;
+
+    match self {
+      UInt | UInt2 | UInt3 | UInt4 => true,
+      _ => false
+    }
+  }
+
+  // Check whether the vertex attribute type is floating.
+  pub fn is_floating(self) -> bool {
+    use VertexAttribType::*;
+
+    match self {
+      Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float32 |
+        Float42 | Float43 | Float44 => true,
+      _ => false
+    }
+  }
+
+  // Check whether the vertex attribute type is boolean..
+  pub fn is_boolean(self) -> bool {
+    use VertexAttribType::*;
+
+    match self {
+      Bool | UInt2 | UInt3 | UInt4 => true,
+      _ => false
+    }
+  }
+
+
+  /// Get the number of unit elements in a vertex attribute.
+  ///
+  /// That value is always `1` for scalar types, `N` for N-length vectors and `N` for `M×N`
+  /// matrices.
+  pub fn unit_len(self) -> usize {
+    use VertexAttribType::*;
+
+    match self {
+      Int => 1,
+      Int2 => 2,
+      Int3 => 3,
+      Int4 => 4,
+      UInt => 1,
+      UInt2 => 2,
+      UInt3 => 3,
+      UInt4 => 4,
+      Float => 1,
+      Float2 => 2,
+      Float3 => 2,
+      Float4 => 2,
+      Float22 => 2,
+      Float23 => 3,
+      Float24 => 4,
+      Float32 => 2,
+      Float33 => 3,
+      Float34 => 4,
+      Float42 => 2,
+      Float43 => 3,
+      Float44 => 4,
+      Bool => 1,
+      Bool2 => 2,
+      Bool3 => 3,
+      Bool4 => 4,
+    }
+  }
 }
 
 /// Class of vertex attributes.
@@ -235,41 +299,56 @@ const fn align_of<T>() -> usize {
 
 // Macro to quickly implement VertexAttrib for a given type.
 macro_rules! impl_vertex_attribute {
-  ($t:ty, $q:ty, $attr_ty:ident, $dim:ident) => {
+  ($t:ty, $q:ty, $attr_ty:ident) => {
     unsafe impl VertexAttrib for $t {
       const VERTEX_ATTRIB_DESC: VertexAttribDesc = VertexAttribDesc {
         ty: VertexAttribType::$attr_ty,
-        dim: VertexAttribDim::$dim,
         unit_size: $crate::vertex::size_of::<$q>(),
         align: $crate::vertex::align_of::<$q>(),
       };
     }
   };
-
-  ($t:ty, $attr_ty:ident) => {
-    impl_vertex_attribute!($t, $t, $attr_ty, Dim1);                 // scalar
-    impl_vertex_attribute!([$t; 1], $t, $attr_ty, Dim1);            // scalar
-    impl_vertex_attribute!([$t; 2], $t, $attr_ty, Dim2);            // *vec2
-    impl_vertex_attribute!([$t; 3], $t, $attr_ty, Dim3);            // *vec3
-    impl_vertex_attribute!([$t; 4], $t, $attr_ty, Dim4);            // *vec4
-    impl_vertex_attribute!([[$t; 2]; 2], [$t; 2], $attr_ty, Mat2);  // 2×2 matrix
-    impl_vertex_attribute!([[$t; 2]; 3], [$t; 2], $attr_ty, Mat23); // 2×3 matrix
-    impl_vertex_attribute!([[$t; 2]; 4], [$t; 2], $attr_ty, Mat24); // 2×4 matrix
-    impl_vertex_attribute!([[$t; 3]; 2], [$t; 3], $attr_ty, Mat32); // 3×2 matrix
-    impl_vertex_attribute!([[$t; 3]; 3], [$t; 3], $attr_ty, Mat3);  // 3×3 matrix
-    impl_vertex_attribute!([[$t; 3]; 4], [$t; 3], $attr_ty, Mat34); // 3×4 matrix
-    impl_vertex_attribute!([[$t; 4]; 2], [$t; 4], $attr_ty, Mat42); // 3×2 matrix
-    impl_vertex_attribute!([[$t; 4]; 3], [$t; 4], $attr_ty, Mat43); // 3×3 matrix
-    impl_vertex_attribute!([[$t; 4]; 4], [$t; 4], $attr_ty, Mat4);  // 3×4 matrix
-  };
 }
 
-impl_vertex_attribute!(i8, Integral);
-impl_vertex_attribute!(i16, Integral);
-impl_vertex_attribute!(i32, Integral);
-impl_vertex_attribute!(u8, Unsigned);
-impl_vertex_attribute!(u16, Unsigned);
-impl_vertex_attribute!(u32, Unsigned);
-impl_vertex_attribute!(f32, Floating);
-impl_vertex_attribute!(f64, Floating);
-impl_vertex_attribute!(bool, Floating);
+// signed integral
+impl_vertex_attribute!(i8, i8, VertexAttribType::Int);
+impl_vertex_attribute!(i16, i16, VertexAttribType::Int);
+impl_vertex_attribute!(i32, i32, VertexAttribType::Int);
+impl_vertex_attribute!([i8; 2], i8, VertexAttribType::Int2);
+impl_vertex_attribute!([i8; 3], i8, VertexAttribType::Int3);
+impl_vertex_attribute!([i8; 4], i8, VertexAttribType::Int4);
+impl_vertex_attribute!([i16; 2], i16, VertexAttribType::Int2);
+impl_vertex_attribute!([i16; 3], i16, VertexAttribType::Int3);
+impl_vertex_attribute!([i16; 4], i16, VertexAttribType::Int4);
+impl_vertex_attribute!([i32; 2], i32, VertexAttribType::Int2);
+impl_vertex_attribute!([i32; 3], i32, VertexAttribType::Int3);
+impl_vertex_attribute!([i32; 4], i32, VertexAttribType::Int4);
+
+// unsigned integral
+impl_vertex_attribute!(u8, u8, VertexAttribType::UInt);
+impl_vertex_attribute!(u16, u16, VertexAttribType::UInt);
+impl_vertex_attribute!(u32, u32, VertexAttribType::UInt);
+impl_vertex_attribute!([u8; 2], u8, VertexAttribType::UInt2);
+impl_vertex_attribute!([u8; 3], u8, VertexAttribType::UInt3);
+impl_vertex_attribute!([u8; 4], u8, VertexAttribType::UInt4);
+impl_vertex_attribute!([u16; 2], u16, VertexAttribType::UInt2);
+impl_vertex_attribute!([u16; 3], u16, VertexAttribType::UInt3);
+impl_vertex_attribute!([u16; 4], u16, VertexAttribType::UInt4);
+impl_vertex_attribute!([u32; 2], u32, VertexAttribType::UInt2);
+impl_vertex_attribute!([u32; 3], u32, VertexAttribType::UInt3);
+impl_vertex_attribute!([u32; 4], u32, VertexAttribType::UInt4);
+
+// floating
+impl_vertex_attribute!(f32, f32, VertexAttribType::Float);
+impl_vertex_attribute!([f32; 2], f32, VertexAttribType::Float2);
+impl_vertex_attribute!([f32; 3], f32, VertexAttribType::Float3);
+impl_vertex_attribute!([f32; 4], f32, VertexAttribType::Float4);
+impl_vertex_attribute!([[f32; 2]; 2], f32, VertexAttribType::Float22);
+impl_vertex_attribute!([[f32; 2]; 3], f32, VertexAttribType::Float23);
+impl_vertex_attribute!([[f32; 2]; 4], f32, VertexAttribType::Float24);
+impl_vertex_attribute!([[f32; 3]; 2], f32, VertexAttribType::Float32);
+impl_vertex_attribute!([[f32; 3]; 3], f32, VertexAttribType::Float33);
+impl_vertex_attribute!([[f32; 3]; 4], f32, VertexAttribType::Float34);
+impl_vertex_attribute!([[f32; 4]; 2], f32, VertexAttribType::Float42);
+impl_vertex_attribute!([[f32; 4]; 3], f32, VertexAttribType::Float43);
+impl_vertex_attribute!([[f32; 4]; 4], f32, VertexAttribType::Float44);

@@ -76,8 +76,7 @@ use crate::buffer::{Buffer, BufferError, BufferSlice, BufferSliceMut, RawBuffer}
 use crate::context::GraphicsContext;
 use crate::metagl::*;
 use crate::vertex::{
-  VertexBufferDesc, Vertex, VertexAttribDim, VertexAttribDesc, VertexAttribType, VertexDesc,
-  VertexInstancing
+  VertexBufferDesc, Vertex, VertexAttribDesc, VertexAttribType, VertexDesc, VertexInstancing
 };
 use crate::vertex_restart::VertexRestart;
 
@@ -679,25 +678,7 @@ fn off_align(off: usize, align: usize) -> usize {
 
 // Weight in bytes of a vertex component.
 fn component_weight(f: &VertexAttribDesc) -> usize {
-  dim_as_size(&f.dim) as usize * f.unit_size
-}
-
-fn dim_as_size(d: &VertexAttribDim) -> GLint {
-  match *d {
-    VertexAttribDim::Dim1 => 1,
-    VertexAttribDim::Dim2 => 2,
-    VertexAttribDim::Dim3 => 3,
-    VertexAttribDim::Dim4 => 4,
-    VertexAttribDim::Mat2 => 2,
-    VertexAttribDim::Mat23 => 3,
-    VertexAttribDim::Mat24 => 4,
-    VertexAttribDim::Mat32 => 2,
-    VertexAttribDim::Mat3 => 3,
-    VertexAttribDim::Mat34 => 4,
-    VertexAttribDim::Mat42=> 2,
-    VertexAttribDim::Mat43 => 3,
-    VertexAttribDim::Mat4 => 4,
-  }
+  f.ty.unit_len() * f.unit_size
 }
 
 // Weight in bytes of a single vertex, taking into account padding so that the vertex stay correctly
@@ -713,32 +694,40 @@ fn offset_based_vertex_weight(descriptors: &VertexDesc, offsets: &[usize]) -> us
   )
 }
 
+// Check whether the vertex attribute type is floating.
+fn is_vertex_attr_floating(ty: VertexAttribType) -> bool {
+  use VertexAttribType::*;
+
+  match ty {
+    Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float32 |
+      Float42 | Float43 | Float44 => true,
+    _ => false
+  }
+}
+
 // Set the vertex component OpenGL pointers regarding the index of the component (i), the stride
 fn set_component_format(stride: GLsizei, off: usize, desc: &VertexBufferDesc) {
   let attrib_desc = &desc.attrib_desc;
   let index = desc.index as GLuint;
 
   unsafe {
-    match attrib_desc.ty {
-      VertexAttribType::Floating => {
-        gl::VertexAttribPointer(
-          index,
-          dim_as_size(&attrib_desc.dim),
-          opengl_sized_type(&attrib_desc),
-          gl::FALSE,
-          stride,
-          ptr::null::<c_void>().offset(off as isize),
-          );
-      },
-      VertexAttribType::Integral | VertexAttribType::Unsigned | VertexAttribType::Boolean => {
-        gl::VertexAttribIPointer(
-          index,
-          dim_as_size(&attrib_desc.dim),
-          opengl_sized_type(&attrib_desc),
-          stride,
-          ptr::null::<c_void>().offset(off as isize),
-          );
-      },
+    if is_vertex_attr_floating(attrib_desc.ty) {
+      gl::VertexAttribPointer(
+        index,
+        attrib_desc.ty.unit_len() as GLint,
+        opengl_sized_type(&attrib_desc),
+        gl::FALSE,
+        stride,
+        ptr::null::<c_void>().offset(off as isize),
+      );
+    } else {
+      gl::VertexAttribIPointer(
+        index,
+        attrib_desc.ty.unit_len() as GLint,
+        opengl_sized_type(&attrib_desc),
+        stride,
+        ptr::null::<c_void>().offset(off as isize),
+      );
     }
 
     // set vertex attribute divisor based on the vertex instancing configuration
@@ -752,16 +741,37 @@ fn set_component_format(stride: GLsizei, off: usize, desc: &VertexBufferDesc) {
   }
 }
 
-fn opengl_sized_type(f: &VertexAttribDesc) -> GLenum {
-  match (f.ty, f.unit_size) {
-    (VertexAttribType::Integral, 1) => gl::BYTE,
-    (VertexAttribType::Integral, 2) => gl::SHORT,
-    (VertexAttribType::Integral, 4) => gl::INT,
-    (VertexAttribType::Unsigned, 1) | (VertexAttribType::Boolean, 1) => gl::UNSIGNED_BYTE,
-    (VertexAttribType::Unsigned, 2) => gl::UNSIGNED_SHORT,
-    (VertexAttribType::Unsigned, 4) => gl::UNSIGNED_INT,
-    (VertexAttribType::Floating, 4) => gl::FLOAT,
-    _ => panic!("unsupported vertex component format: {:?}", f),
+fn opengl_sized_type(f: &VertexAttribDesc) -> Option<GLenum> {
+  use VertexAttribType::*;
+
+  let ty = f.ty;
+
+  if ty.is_integral() {
+    match f.unit_size {
+      1 => Some(gl::BYTE),
+      2 => Some(gl::SHORT),
+      4 => Some(gl::INT),
+      _ => None
+    }
+  } else if ty.is_unsigned_integral() {
+    match f.unit_size {
+      1 => Some(gl::UNSIGNED_BYTE),
+      2 => Some(gl::UNSIGNED_SHORT),
+      4 => Some(gl::UNSIGNED_INT),
+      _ => None
+    }
+  } else if ty.is_floating() {
+    match f.unit_size {
+      4 => Some(gl::FLOAT),
+      _ => None
+    }
+  } else if ty.is_boolean() {
+    match f.unit_size {
+      1 => Some(gl::UNSIGNED_BYTE),
+      _ => None
+    }
+  } else {
+    None
   }
 }
 
