@@ -199,6 +199,27 @@ impl VertexAttribType {
       //Array(ref x, _) => x.unit_len(),
     }
   }
+
+  /// Get the number of layers of a vertex attribute.
+  ///
+  /// That value is always `1` for scalar types and N-length vectors and `M` for `M×N` matrices.
+  pub fn layers(&self) -> usize {
+    use VertexAttribType::*;
+
+    match *self {
+      Int | Int2 | Int3 | Int4 | UInt | UInt2 | UInt3 | UInt4 | Float | Float2 | Float3 | Float4 |
+        Bool | Bool2 | Bool3 | Bool4 => 1,
+      Float22 => 2,
+      Float23 => 2,
+      Float24 => 2,
+      Float32 => 3,
+      Float33 => 3,
+      Float34 => 3,
+      Float42 => 4,
+      Float43 => 4,
+      Float44 => 4,
+    }
+  }
 }
 
 /// Class of vertex attributes.
