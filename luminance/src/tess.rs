@@ -256,7 +256,7 @@ impl<'a, C> TessBuilder<'a, C> where C: GraphicsContext {
       // add the vertex buffers into the vao
       for vb in &self.vertex_buffers {
         gfx_st.bind_array_buffer(vb.buf.handle());
-        set_vertex_pointers(&vb.fmt)
+        set_vertex_pointers(&vb.fmt)?;
       }
 
       // in case of indexed render, create an index buffer
@@ -267,7 +267,7 @@ impl<'a, C> TessBuilder<'a, C> where C: GraphicsContext {
       // add any instance buffers, if any
       for vb in &self.instance_buffers {
         gfx_st.bind_array_buffer(vb.buf.handle());
-        set_vertex_pointers(&vb.fmt);
+        set_vertex_pointers(&vb.fmt)?;
       }
 
       let restart_index = self.restart_index;
@@ -400,7 +400,9 @@ impl<'a, C> TessBuilder<'a, C> where C: GraphicsContext {
 pub enum TessError {
   AttributelessError(String),
   LengthIncoherency(usize),
-  Overflow(usize, usize)
+  Overflow(usize, usize),
+  /// Unsupported vertex attribute type / format.
+  UnsupportedVertexAttributeType(VertexAttribDesc),
 }
 
 /// Possible tessellation index types.
@@ -638,7 +640,7 @@ impl Drop for Tess {
 
 // Give OpenGL types information on the content of the VBO by setting vertex descriptors and pointers
 // to buffer memory.
-fn set_vertex_pointers(descriptors: &VertexDesc) {
+fn set_vertex_pointers(descriptors: &VertexDesc) -> Result<(), TessError> {
   // this function sets the vertex attribute pointer for the input list by computing:
   //   - The vertex attribute ID: this is the “rank” of the attribute in the input list (order
   //     matters, for short).
@@ -649,8 +651,10 @@ fn set_vertex_pointers(descriptors: &VertexDesc) {
   let vertex_weight = offset_based_vertex_weight(descriptors, &offsets) as GLsizei;
 
   for (desc, off) in descriptors.iter().zip(offsets) {
-    set_component_format(vertex_weight, off, desc);
+    set_component_format(vertex_weight, off, desc)?;
   }
+
+  Ok(())
 }
 
 // Compute offsets for all the vertex components according to the alignments provided.
@@ -699,23 +703,29 @@ fn is_vertex_attr_floating(ty: VertexAttribType) -> bool {
   use VertexAttribType::*;
 
   match ty {
-    Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float32 |
-      Float42 | Float43 | Float44 => true,
+    Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float42 |
+      Float43 | Float44 => true,
     _ => false
   }
 }
 
 // Set the vertex component OpenGL pointers regarding the index of the component (i), the stride
-fn set_component_format(stride: GLsizei, off: usize, desc: &VertexBufferDesc) {
+fn set_component_format(
+  stride: GLsizei,
+  off: usize,
+  desc: &VertexBufferDesc
+) -> Result<(), TessError> {
   let attrib_desc = &desc.attrib_desc;
   let index = desc.index as GLuint;
+  let ty_repr = opengl_sized_type(attrib_desc)
+    .ok_or(TessError::UnsupportedVertexAttributeType(*attrib_desc))?;
 
   unsafe {
     if is_vertex_attr_floating(attrib_desc.ty) {
       gl::VertexAttribPointer(
         index,
         attrib_desc.ty.unit_len() as GLint,
-        opengl_sized_type(&attrib_desc),
+        ty_repr,
         gl::FALSE,
         stride,
         ptr::null::<c_void>().offset(off as isize),
@@ -724,7 +734,7 @@ fn set_component_format(stride: GLsizei, off: usize, desc: &VertexBufferDesc) {
       gl::VertexAttribIPointer(
         index,
         attrib_desc.ty.unit_len() as GLint,
-        opengl_sized_type(&attrib_desc),
+        ty_repr,
         stride,
         ptr::null::<c_void>().offset(off as isize),
       );
@@ -739,11 +749,13 @@ fn set_component_format(stride: GLsizei, off: usize, desc: &VertexBufferDesc) {
 
     gl::EnableVertexAttribArray(index);
   }
+
+  Ok(())
 }
 
+// Get the OpenGL sized-type representation of a given vertex attribute type. Might fail if no
+// representation exists.
 fn opengl_sized_type(f: &VertexAttribDesc) -> Option<GLenum> {
-  use VertexAttribType::*;
-
   let ty = f.ty;
 
   if ty.is_integral() {

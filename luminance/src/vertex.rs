@@ -144,8 +144,8 @@ impl VertexAttribType {
     use VertexAttribType::*;
 
     match self {
-      Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float32 |
-        Float42 | Float43 | Float44 => true,
+      Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float42 |
+        Float43 | Float44 => true,
       _ => false
     }
   }
@@ -311,44 +311,44 @@ macro_rules! impl_vertex_attribute {
 }
 
 // signed integral
-impl_vertex_attribute!(i8, i8, VertexAttribType::Int);
-impl_vertex_attribute!(i16, i16, VertexAttribType::Int);
-impl_vertex_attribute!(i32, i32, VertexAttribType::Int);
-impl_vertex_attribute!([i8; 2], i8, VertexAttribType::Int2);
-impl_vertex_attribute!([i8; 3], i8, VertexAttribType::Int3);
-impl_vertex_attribute!([i8; 4], i8, VertexAttribType::Int4);
-impl_vertex_attribute!([i16; 2], i16, VertexAttribType::Int2);
-impl_vertex_attribute!([i16; 3], i16, VertexAttribType::Int3);
-impl_vertex_attribute!([i16; 4], i16, VertexAttribType::Int4);
-impl_vertex_attribute!([i32; 2], i32, VertexAttribType::Int2);
-impl_vertex_attribute!([i32; 3], i32, VertexAttribType::Int3);
-impl_vertex_attribute!([i32; 4], i32, VertexAttribType::Int4);
+impl_vertex_attribute!(i8, i8, Int);
+impl_vertex_attribute!(i16, i16, Int);
+impl_vertex_attribute!(i32, i32, Int);
+impl_vertex_attribute!([i8; 2], i8, Int2);
+impl_vertex_attribute!([i8; 3], i8, Int3);
+impl_vertex_attribute!([i8; 4], i8, Int4);
+impl_vertex_attribute!([i16; 2], i16, Int2);
+impl_vertex_attribute!([i16; 3], i16, Int3);
+impl_vertex_attribute!([i16; 4], i16, Int4);
+impl_vertex_attribute!([i32; 2], i32, Int2);
+impl_vertex_attribute!([i32; 3], i32, Int3);
+impl_vertex_attribute!([i32; 4], i32, Int4);
 
 // unsigned integral
-impl_vertex_attribute!(u8, u8, VertexAttribType::UInt);
-impl_vertex_attribute!(u16, u16, VertexAttribType::UInt);
-impl_vertex_attribute!(u32, u32, VertexAttribType::UInt);
-impl_vertex_attribute!([u8; 2], u8, VertexAttribType::UInt2);
-impl_vertex_attribute!([u8; 3], u8, VertexAttribType::UInt3);
-impl_vertex_attribute!([u8; 4], u8, VertexAttribType::UInt4);
-impl_vertex_attribute!([u16; 2], u16, VertexAttribType::UInt2);
-impl_vertex_attribute!([u16; 3], u16, VertexAttribType::UInt3);
-impl_vertex_attribute!([u16; 4], u16, VertexAttribType::UInt4);
-impl_vertex_attribute!([u32; 2], u32, VertexAttribType::UInt2);
-impl_vertex_attribute!([u32; 3], u32, VertexAttribType::UInt3);
-impl_vertex_attribute!([u32; 4], u32, VertexAttribType::UInt4);
+impl_vertex_attribute!(u8, u8, UInt);
+impl_vertex_attribute!(u16, u16, UInt);
+impl_vertex_attribute!(u32, u32, UInt);
+impl_vertex_attribute!([u8; 2], u8, UInt2);
+impl_vertex_attribute!([u8; 3], u8, UInt3);
+impl_vertex_attribute!([u8; 4], u8, UInt4);
+impl_vertex_attribute!([u16; 2], u16, UInt2);
+impl_vertex_attribute!([u16; 3], u16, UInt3);
+impl_vertex_attribute!([u16; 4], u16, UInt4);
+impl_vertex_attribute!([u32; 2], u32, UInt2);
+impl_vertex_attribute!([u32; 3], u32, UInt3);
+impl_vertex_attribute!([u32; 4], u32, UInt4);
 
 // floating
-impl_vertex_attribute!(f32, f32, VertexAttribType::Float);
-impl_vertex_attribute!([f32; 2], f32, VertexAttribType::Float2);
-impl_vertex_attribute!([f32; 3], f32, VertexAttribType::Float3);
-impl_vertex_attribute!([f32; 4], f32, VertexAttribType::Float4);
-impl_vertex_attribute!([[f32; 2]; 2], f32, VertexAttribType::Float22);
-impl_vertex_attribute!([[f32; 2]; 3], f32, VertexAttribType::Float23);
-impl_vertex_attribute!([[f32; 2]; 4], f32, VertexAttribType::Float24);
-impl_vertex_attribute!([[f32; 3]; 2], f32, VertexAttribType::Float32);
-impl_vertex_attribute!([[f32; 3]; 3], f32, VertexAttribType::Float33);
-impl_vertex_attribute!([[f32; 3]; 4], f32, VertexAttribType::Float34);
-impl_vertex_attribute!([[f32; 4]; 2], f32, VertexAttribType::Float42);
-impl_vertex_attribute!([[f32; 4]; 3], f32, VertexAttribType::Float43);
-impl_vertex_attribute!([[f32; 4]; 4], f32, VertexAttribType::Float44);
+impl_vertex_attribute!(f32, f32, Float);
+impl_vertex_attribute!([f32; 2], f32, Float2);
+impl_vertex_attribute!([f32; 3], f32, Float3);
+impl_vertex_attribute!([f32; 4], f32, Float4);
+impl_vertex_attribute!([[f32; 2]; 2], f32, Float22);
+impl_vertex_attribute!([[f32; 2]; 3], f32, Float23);
+impl_vertex_attribute!([[f32; 2]; 4], f32, Float24);
+impl_vertex_attribute!([[f32; 3]; 2], f32, Float32);
+impl_vertex_attribute!([[f32; 3]; 3], f32, Float33);
+impl_vertex_attribute!([[f32; 3]; 4], f32, Float34);
+impl_vertex_attribute!([[f32; 4]; 2], f32, Float42);
+impl_vertex_attribute!([[f32; 4]; 3], f32, Float43);
+impl_vertex_attribute!([[f32; 4]; 4], f32, Float44);
