@@ -32,7 +32,7 @@ pub type VertexDesc = Vec<VertexBufferDesc>;
 ///
 /// Such a description is used to explain what vertex buffers are made of and how they should be
 /// aligned / etc.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VertexBufferDesc {
   pub index: usize,
   pub name: &'static str,
@@ -72,7 +72,7 @@ pub enum VertexInstancing {
 /// A type is associated with a single value of type [`VertexAttribDesc`] via the [`VertexAttrib`]
 /// trait. If such an implementor exists for a type, it means that this type can be used as a vertex
 /// attribute.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct VertexAttribDesc {
   /// Type of the attribute. See [`VertexAttribType`] for further details.
   pub ty: VertexAttribType,
@@ -85,7 +85,7 @@ pub struct VertexAttribDesc {
 }
 
 /// Possible type of vertex attributes.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum VertexAttribType {
   // signed integral
   Int,
@@ -116,34 +116,36 @@ pub enum VertexAttribType {
   Bool2,
   Bool3,
   Bool4,
+  // array
+  //Array(Box<VertexAttribType>, usize)
 }
 
 impl VertexAttribType {
   // Check whether the vertex attribute type is signed integral.
-  pub fn is_integral(self) -> bool {
+  pub fn is_integral(&self) -> bool {
     use VertexAttribType::*;
 
-    match self {
+    match *self {
       Int | Int2 | Int3 | Int4 => true,
       _ => false
     }
   }
 
   // Check whether the vertex attribute type is unsigned integral.
-  pub fn is_unsigned_integral(self) -> bool {
+  pub fn is_unsigned_integral(&self) -> bool {
     use VertexAttribType::*;
 
-    match self {
+    match *self {
       UInt | UInt2 | UInt3 | UInt4 => true,
       _ => false
     }
   }
 
   // Check whether the vertex attribute type is floating.
-  pub fn is_floating(self) -> bool {
+  pub fn is_floating(&self) -> bool {
     use VertexAttribType::*;
 
-    match self {
+    match *self {
       Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float42 |
         Float43 | Float44 => true,
       _ => false
@@ -151,10 +153,10 @@ impl VertexAttribType {
   }
 
   // Check whether the vertex attribute type is boolean..
-  pub fn is_boolean(self) -> bool {
+  pub fn is_boolean(&self) -> bool {
     use VertexAttribType::*;
 
-    match self {
+    match *self {
       Bool | UInt2 | UInt3 | UInt4 => true,
       _ => false
     }
@@ -165,10 +167,10 @@ impl VertexAttribType {
   ///
   /// That value is always `1` for scalar types, `N` for N-length vectors and `N` for `M×N`
   /// matrices.
-  pub fn unit_len(self) -> usize {
+  pub fn unit_len(&self) -> usize {
     use VertexAttribType::*;
 
-    match self {
+    match *self {
       Int => 1,
       Int2 => 2,
       Int3 => 3,
@@ -194,6 +196,7 @@ impl VertexAttribType {
       Bool2 => 2,
       Bool3 => 3,
       Bool4 => 4,
+      //Array(ref x, _) => x.unit_len(),
     }
   }
 }

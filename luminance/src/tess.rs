@@ -75,9 +75,7 @@ use core::ptr;
 use crate::buffer::{Buffer, BufferError, BufferSlice, BufferSliceMut, RawBuffer};
 use crate::context::GraphicsContext;
 use crate::metagl::*;
-use crate::vertex::{
-  VertexBufferDesc, Vertex, VertexAttribDesc, VertexAttribType, VertexDesc, VertexInstancing
-};
+use crate::vertex::{VertexBufferDesc, Vertex, VertexAttribDesc, VertexDesc, VertexInstancing};
 use crate::vertex_restart::VertexRestart;
 
 /// Vertices can be connected via several modes.
@@ -643,15 +641,18 @@ impl Drop for Tess {
 fn set_vertex_pointers(descriptors: &VertexDesc) -> Result<(), TessError> {
   // this function sets the vertex attribute pointer for the input list by computing:
   //   - The vertex attribute ID: this is the “rank” of the attribute in the input list (order
-  //     matters, for short).
+  //     matters, for short). Furthermore, some type of attributes (e.g. arrays, matrices) have to
+  //     be accounted in special cases.
   //   - The stride: this is easily computed, since it’s the size (bytes) of a single vertex.
   //   - The offsets: each attribute has a given offset in the buffer. This is computed by
   //     accumulating the size of all previously set attributes.
   let offsets = aligned_offsets(descriptors);
   let vertex_weight = offset_based_vertex_weight(descriptors, &offsets) as GLsizei;
+  // the index offset, used to assign several indices for a single type
+  let mut index_off = 0;
 
   for (desc, off) in descriptors.iter().zip(offsets) {
-    set_component_format(vertex_weight, off, desc)?;
+    set_component_format(vertex_weight, off, desc, &mut index_off)?;
   }
 
   Ok(())
@@ -698,30 +699,20 @@ fn offset_based_vertex_weight(descriptors: &VertexDesc, offsets: &[usize]) -> us
   )
 }
 
-// Check whether the vertex attribute type is floating.
-fn is_vertex_attr_floating(ty: VertexAttribType) -> bool {
-  use VertexAttribType::*;
-
-  match ty {
-    Float | Float2 | Float3 | Float4 | Float22 | Float23 | Float24 | Float32 | Float33 | Float42 |
-      Float43 | Float44 => true,
-    _ => false
-  }
-}
-
 // Set the vertex component OpenGL pointers regarding the index of the component (i), the stride
 fn set_component_format(
   stride: GLsizei,
   off: usize,
-  desc: &VertexBufferDesc
+  desc: &VertexBufferDesc,
+  index_off: &mut GLuint
 ) -> Result<(), TessError> {
   let attrib_desc = &desc.attrib_desc;
   let index = desc.index as GLuint;
   let ty_repr = opengl_sized_type(attrib_desc)
-    .ok_or(TessError::UnsupportedVertexAttributeType(*attrib_desc))?;
+    .ok_or(TessError::UnsupportedVertexAttributeType(attrib_desc.clone()))?;
 
   unsafe {
-    if is_vertex_attr_floating(attrib_desc.ty) {
+    if attrib_desc.ty.is_floating() {
       gl::VertexAttribPointer(
         index,
         attrib_desc.ty.unit_len() as GLint,
@@ -756,7 +747,7 @@ fn set_component_format(
 // Get the OpenGL sized-type representation of a given vertex attribute type. Might fail if no
 // representation exists.
 fn opengl_sized_type(f: &VertexAttribDesc) -> Option<GLenum> {
-  let ty = f.ty;
+  let ty = &f.ty;
 
   if ty.is_integral() {
     match f.unit_size {
