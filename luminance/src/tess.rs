@@ -711,17 +711,11 @@ fn set_component_format(
   let ty_repr = opengl_sized_type(attrib_desc)
     .ok_or(TessError::UnsupportedVertexAttributeType(attrib_desc.clone()))?;
 
-  // traverse all the layers for the given attribute and assign an index for one of them
-  let layers_nb = attrib_desc.ty.layers();
-  for l in 0 .. layers_nb {
-    if l != 0 {
-      *index_off += 1;
-    }
-
+  let set_vertex_attrib_pointer = |index_off: GLuint| {
     unsafe {
       if attrib_desc.ty.is_floating() {
         gl::VertexAttribPointer(
-          index + *index_off as GLuint,
+          index + index_off as GLuint,
           attrib_desc.ty.unit_len() as GLint,
           ty_repr,
           gl::FALSE,
@@ -730,7 +724,7 @@ fn set_component_format(
         );
       } else {
         gl::VertexAttribIPointer(
-          index + *index_off as GLuint,
+          index + index_off as GLuint,
           attrib_desc.ty.unit_len() as GLint,
           ty_repr,
           stride,
@@ -747,6 +741,16 @@ fn set_component_format(
 
       gl::EnableVertexAttribArray(index);
     }
+  };
+
+  // we will always have at least one layer
+  set_vertex_attrib_pointer(0);
+
+  // traverse all the remaining layers for the given attribute and assign an index for one of them
+  let layers_nb = attrib_desc.ty.layers();
+  for l in 1 .. layers_nb {
+    *index_off += 1;
+    set_vertex_attrib_pointer(*index_off as GLuint);
   }
 
   Ok(())
