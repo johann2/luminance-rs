@@ -704,41 +704,49 @@ fn set_component_format(
   stride: GLsizei,
   off: usize,
   desc: &VertexBufferDesc,
-  index_off: &mut GLuint
+  index_off: &mut usize
 ) -> Result<(), TessError> {
   let attrib_desc = &desc.attrib_desc;
   let index = desc.index as GLuint;
   let ty_repr = opengl_sized_type(attrib_desc)
     .ok_or(TessError::UnsupportedVertexAttributeType(attrib_desc.clone()))?;
 
-  unsafe {
-    if attrib_desc.ty.is_floating() {
-      gl::VertexAttribPointer(
-        index,
-        attrib_desc.ty.unit_len() as GLint,
-        ty_repr,
-        gl::FALSE,
-        stride,
-        ptr::null::<c_void>().offset(off as isize),
-      );
-    } else {
-      gl::VertexAttribIPointer(
-        index,
-        attrib_desc.ty.unit_len() as GLint,
-        ty_repr,
-        stride,
-        ptr::null::<c_void>().offset(off as isize),
-      );
+  // traverse all the layers for the given attribute and assign an index for one of them
+  let layers_nb = attrib_desc.ty.layers();
+  for l in 0 .. layers_nb {
+    if l != 0 {
+      *index_off += 1;
     }
 
-    // set vertex attribute divisor based on the vertex instancing configuration
-    let divisor = match desc.instancing {
-      VertexInstancing::On => 1,
-      VertexInstancing::Off => 0
-    };
-    gl::VertexAttribDivisor(index, divisor);
+    unsafe {
+      if attrib_desc.ty.is_floating() {
+        gl::VertexAttribPointer(
+          index + *index_off as GLuint,
+          attrib_desc.ty.unit_len() as GLint,
+          ty_repr,
+          gl::FALSE,
+          stride,
+          ptr::null::<c_void>().offset(off as isize),
+        );
+      } else {
+        gl::VertexAttribIPointer(
+          index + *index_off as GLuint,
+          attrib_desc.ty.unit_len() as GLint,
+          ty_repr,
+          stride,
+          ptr::null::<c_void>().offset(off as isize),
+        );
+      }
 
-    gl::EnableVertexAttribArray(index);
+      // set vertex attribute divisor based on the vertex instancing configuration
+      let divisor = match desc.instancing {
+        VertexInstancing::On => 1,
+        VertexInstancing::Off => 0
+      };
+      gl::VertexAttribDivisor(index, divisor);
+
+      gl::EnableVertexAttribArray(index);
+    }
   }
 
   Ok(())
