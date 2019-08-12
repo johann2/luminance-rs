@@ -549,6 +549,25 @@ impl<'a, T> DerefMut for BufferSliceMut<'a, T> where T: 'a {
 /// will be fixed in a future release.
 pub unsafe trait UniformBlock {}
 
+// std140 rules:
+//
+//   1. If scalar consuming N bytes -> alignment is N bytes.
+//   2. If vector 2N or 4N -> alignment is 2N or 4N, respectively.
+//   3. If vector 3N -> alignment is 4N.
+//   4. If array of scalars or vectors -> alignment based on (1), (2) and/or (3) rounded up to the
+//     alignment of a vec4.
+//   5. If column-major matrix with C cols and R rows, same as array of C column vectors with R
+//     components each, according to rule (4).
+//   6. If array of S column-major matrices with C cols and R rows, same as row of S × C with R
+//     components each, according to rule (4).
+//   7. If row-major matrix with C cols and R rows, same as array of R row vectors with C
+//     components each, according to rule (4).
+//   8. If array of S row-major matrices with C cols and R rows, same as row of S × R with C
+//     components each, according to rule (4).
+//   9. If struct, the base aligment is N where N = max(alignment of its fields) rounded up to the
+//     base alignment of vec4. That applies recurively for nested structs.
+//   10. If array of S structs, the S elements of the array are laid out in order.
+
 unsafe impl UniformBlock for u8 {}
 unsafe impl UniformBlock for u16 {}
 unsafe impl UniformBlock for u32 {}
