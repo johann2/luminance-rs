@@ -629,6 +629,46 @@ pub enum Type {
   BufferBinding,
 }
 
+impl Type {
+  /// Size in bytes such a [`Type`] represents.
+  pub const fn size(&self) -> usize {
+    match *self {
+      Type::Int => 4,
+      Type::UInt => 4,
+      Type::Float => 4,
+      Type::Bool => 1,
+      Type::IVec2 => Type::Int.size() * 2,
+      Type::IVec3 => Type::Int.size() * 3,
+      Type::IVec4 => Type::Int.size() * 4,
+      Type::UIVec2 => Type::UInt.size() * 2,
+      Type::UIVec3 => Type::UInt.size() * 3,
+      Type::UIVec4 => Type::UInt.size() * 4,
+      Type::Vec2 => Type::Float.size() * 2,
+      Type::Vec3 => Type::Float.size() * 3,
+      Type::Vec4 => Type::Float.size() * 4,
+      Type::BVec2 => Type::Bool.size() * 2,
+      Type::BVec3 => Type::Bool.size() * 3,
+      Type::BVec4 => Type::Bool.size() * 4,
+      Type::M22 => Type::Float.size() * 2 * 2,
+      Type::M33 => Type::Float.size() * 3 * 3,
+      Type::M44 => Type::Float.size() * 4 * 4,
+      Type::ISampler1D => Type::Int.size(),
+      Type::ISampler2D => Type::Int.size(),
+      Type::ISampler3D => Type::Int.size(),
+      Type::UISampler1D => Type::Int.size(),
+      Type::UISampler2D => Type::Int.size(),
+      Type::UISampler3D => Type::Int.size(),
+      Type::Sampler1D => Type::Int.size(),
+      Type::Sampler2D => Type::Int.size(),
+      Type::Sampler3D => Type::Int.size(),
+      Type::ICubemap => Type::Int.size(),
+      Type::UICubemap => Type::Int.size(),
+      Type::Cubemap => Type::Int.size(),
+      Type::BufferBinding => Type::Int.size()
+    }
+  }
+}
+
 /// Types that can behave as `Uniform`.
 pub unsafe trait Uniformable: Sized {
   /// Update the uniform with a new value.
