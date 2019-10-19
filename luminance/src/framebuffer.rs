@@ -28,87 +28,14 @@
 //!
 //! Color buffers are abstracted by `ColorSlot` and the depth buffer by `DepthSlot`.
 
-#[cfg(feature = "std")]
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
-#[cfg(feature = "std")]
 use std::marker::PhantomData;
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
-use core::fmt;
-#[cfg(not(feature = "std"))]
-use core::marker::PhantomData;
-
 use crate::context::GraphicsContext;
-use crate::metagl::*;
 use crate::pixel::{ColorPixel, DepthPixel, PixelFormat, RenderablePixel};
-use crate::state::{Bind, GraphicsState};
-use crate::texture::{
-  create_texture, opengl_target, Dim2, Dimensionable, Flat, Layerable, RawTexture, Texture,
-  TextureError,
-};
-
-/// Framebuffer error.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum FramebufferError {
-  /// Texture error.
-  ///
-  /// This happen while creating / associating the color / depth slots.
-  TextureError(TextureError),
-  /// Incomplete error.
-  ///
-  /// This happens when finalizing the construction of the framebuffer.
-  Incomplete(IncompleteReason),
-}
-
-impl fmt::Display for FramebufferError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-    match *self {
-      FramebufferError::TextureError(ref e) => write!(f, "framebuffer texture error: {}", e),
-
-      FramebufferError::Incomplete(ref e) => write!(f, "incomplete framebuffer: {}", e),
-    }
-  }
-}
-
-/// Reason a framebuffer is incomplete.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IncompleteReason {
-  /// Incomplete framebuffer.
-  Undefined,
-  /// Incomplete attachment (color / depth).
-  IncompleteAttachment,
-  /// An attachment was missing.
-  MissingAttachment,
-  /// Incomplete draw buffer.
-  IncompleteDrawBuffer,
-  /// Incomplete read buffer.
-  IncompleteReadBuffer,
-  /// Unsupported.
-  Unsupported,
-  /// Incomplete multisample configuration.
-  IncompleteMultisample,
-  /// Incomplete layer targets.
-  IncompleteLayerTargets,
-}
-
-impl fmt::Display for IncompleteReason {
-  fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-    match *self {
-      IncompleteReason::Undefined => write!(f, "incomplete reason"),
-      IncompleteReason::IncompleteAttachment => write!(f, "incomplete attachment"),
-      IncompleteReason::MissingAttachment => write!(f, "missing attachment"),
-      IncompleteReason::IncompleteDrawBuffer => write!(f, "incomplete draw buffer"),
-      IncompleteReason::IncompleteReadBuffer => write!(f, "incomplete read buffer"),
-      IncompleteReason::Unsupported => write!(f, "unsupported"),
-      IncompleteReason::IncompleteMultisample => write!(f, "incomplete multisample"),
-      IncompleteReason::IncompleteLayerTargets => write!(f, "incomplete layer targets"),
-    }
-  }
-}
+use crate::texture::{Dim2, Dimensionable, Flat, Layerable, Texture, TextureError};
 
 /// Framebuffer with static layering, dimension, access and slots formats.
 ///
@@ -124,239 +51,45 @@ impl fmt::Display for IncompleteReason {
 /// A framebuffer can have zero or several color slots and it can have zero or one depth slot. If
 /// you use several color slots, you’ll be performing what’s called *MRT* (*M* ultiple *R* ender
 /// *T* argets), enabling to render to several textures at once.
-pub struct Framebuffer<L, D, CS, DS>
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy,
-      CS: ColorSlot<L, D>,
+pub trait Framebuffer<C, L, D, CS, DS>
+where CS: ColorSlot<L, D>,
       DS: DepthSlot<L, D> {
-  handle: GLuint,
-  renderbuffer: Option<GLuint>,
-  w: u32,
-  h: u32,
-  color_slot: CS::ColorTextures,
-  depth_slot: DS::DepthTexture,
-  state: Rc<RefCell<GraphicsState>>,
-  _l: PhantomData<L>,
-  _d: PhantomData<D>,
-}
+  type BackBuffer;
 
-impl Framebuffer<Flat, Dim2, (), ()> {
+  type Err;
+
   /// Get the back buffer with the given dimension.
-  pub fn back_buffer<C>(
+  fn back_buffer(
     ctx: &mut C,
     size: <Dim2 as Dimensionable>::Size
-  ) -> Self
-  where C: GraphicsContext {
-    Framebuffer {
-      handle: 0,
-      renderbuffer: None,
-      w: size[0],
-      h: size[1],
-      color_slot: (),
-      depth_slot: (),
-      state: ctx.state().clone(),
-      _l: PhantomData,
-      _d: PhantomData,
-    }
-  }
-}
+  ) -> Result<BackBuffer, Self::Err>;
 
-impl<L, D, CS, DS> Drop for Framebuffer<L, D, CS, DS>
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy,
-      CS: ColorSlot<L, D>,
-      DS: DepthSlot<L, D> {
-  fn drop(&mut self) {
-    self.destroy();
-  }
-}
-
-impl<L, D, CS, DS> Framebuffer<L, D, CS, DS>
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy,
-      CS: ColorSlot<L, D>,
-      DS: DepthSlot<L, D> {
-  /// Create a new farmebuffer.
+  /// Create a new framebuffer.
   ///
   /// You’re always handed at least the base level of the texture. If you require any *additional*
   /// levels, you can pass the number via the `mipmaps` parameter.
-  pub fn new<C>(
+  fn new(
     ctx: &mut C,
     size: D::Size,
     mipmaps: usize,
-  ) -> Result<Framebuffer<L, D, CS, DS>, FramebufferError>
-  where C: GraphicsContext {
-    let mipmaps = mipmaps + 1;
-    let mut handle: GLuint = 0;
-    let color_formats = CS::color_formats();
-    let depth_format = DS::depth_format();
-    let target = opengl_target(L::layering(), D::dim());
-    let mut textures = vec![0; color_formats.len() + if depth_format.is_some() { 1 } else { 0 }];
-    let mut depth_texture: Option<GLuint> = None;
-    let mut depth_renderbuffer: Option<GLuint> = None;
-
-    unsafe {
-      gl::GenFramebuffers(1, &mut handle);
-
-      ctx.state().borrow_mut().bind_draw_framebuffer(handle);
-
-      // generate all the required textures once; the textures vec will be reduced and dispatched
-      // into other containers afterwards (in ColorSlot::reify_textures)
-      gl::GenTextures((textures.len()) as GLint, textures.as_mut_ptr());
-
-      // color textures
-      if color_formats.is_empty() {
-        gl::DrawBuffer(gl::NONE);
-      } else {
-        for (i, (format, texture)) in color_formats.iter().zip(&textures).enumerate() {
-          ctx.state().borrow_mut().bind_texture(target, *texture);
-          create_texture::<L, D>(target, size, mipmaps, *format, Default::default())
-            .map_err(FramebufferError::TextureError)?;
-          gl::FramebufferTexture(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0 + i as GLenum, *texture, 0);
-        }
-
-        // specify the list of color buffers to draw to
-        let color_buf_nb = color_formats.len() as GLsizei;
-        let color_buffers: Vec<_> =
-          (gl::COLOR_ATTACHMENT0..gl::COLOR_ATTACHMENT0 + color_buf_nb as GLenum).collect();
-
-        gl::DrawBuffers(color_buf_nb, color_buffers.as_ptr());
-      }
-
-      // depth texture, if exists
-      if let Some(format) = depth_format {
-        let texture = textures.pop().unwrap();
-
-        ctx.state().borrow_mut().bind_texture(target, texture);
-        create_texture::<L, D>(target, size, mipmaps, format, Default::default())
-          .map_err(FramebufferError::TextureError)?;
-        gl::FramebufferTexture(gl::FRAMEBUFFER, gl::DEPTH_ATTACHMENT, texture, 0);
-
-        depth_texture = Some(texture);
-      } else {
-        let mut renderbuffer: GLuint = 0;
-
-        gl::GenRenderbuffers(1, &mut renderbuffer);
-        gl::BindRenderbuffer(gl::RENDERBUFFER, renderbuffer);
-        gl::RenderbufferStorage(
-          gl::RENDERBUFFER,
-          gl::DEPTH_COMPONENT32F,
-          D::width(size) as GLsizei,
-          D::height(size) as GLsizei,
-        );
-        gl::BindRenderbuffer(gl::RENDERBUFFER, 0); // FIXME: see whether really needed
-
-        gl::FramebufferRenderbuffer(
-          gl::FRAMEBUFFER,
-          gl::DEPTH_ATTACHMENT,
-          gl::RENDERBUFFER,
-          renderbuffer,
-        );
-
-        depth_renderbuffer = Some(renderbuffer);
-      }
-
-      ctx.state().borrow_mut().bind_texture(target, 0); // FIXME: see whether really needed
-
-      let framebuffer = Framebuffer {
-        handle,
-        renderbuffer: depth_renderbuffer,
-        w: D::width(size),
-        h: D::height(size),
-        color_slot: CS::reify_textures(ctx, size, mipmaps, &mut textures.into_iter()),
-        depth_slot: DS::reify_texture(ctx, size, mipmaps, depth_texture),
-        state: ctx.state().clone(),
-        _l: PhantomData,
-        _d: PhantomData,
-      };
-
-      match get_status() {
-        Ok(_) => {
-          ctx.state().borrow_mut().bind_draw_framebuffer(0); // FIXME: see whether really needed
-
-          Ok(framebuffer)
-        }
-
-        Err(reason) => {
-          ctx.state().borrow_mut().bind_draw_framebuffer(0); // FIXME: see whether really needed
-
-          framebuffer.destroy();
-
-          Err(FramebufferError::Incomplete(reason))
-        }
-      }
-    }
-  }
-
-  // Destroy OpenGL-side stuff.
-  fn destroy(&self) {
-    unsafe {
-      if let Some(renderbuffer) = self.renderbuffer {
-        gl::DeleteRenderbuffers(1, &renderbuffer);
-        gl::BindRenderbuffer(gl::RENDERBUFFER, 0);
-      }
-
-      if self.handle != 0 {
-        gl::DeleteFramebuffers(1, &self.handle);
-        self.state.borrow_mut().bind_vertex_array(0, Bind::Cached);
-      }
-    }
-  }
-
-  /// OpenGL handle of the framebuffer.
-  #[inline]
-  pub(crate) fn handle(&self) -> GLuint {
-    self.handle
-  }
+  ) -> Result<Self, Self::Err>;
 
   /// Width of the framebuffer.
-  #[inline]
-  pub fn width(&self) -> u32 {
-    self.w
-  }
+  fn width(&self) -> u32;
 
   /// Height of the framebuffer.
-  #[inline]
-  pub fn height(&self) -> u32 {
-    self.h
-  }
+  fn height(&self) -> u32;
 
   /// Access the underlying color slot.
-  #[inline]
-  pub fn color_slot(&self) -> &CS::ColorTextures {
-    &self.color_slot
-  }
+  fn color_slot(&self) -> &CS::ColorTextures;
 
   /// Access the underlying depth slot.
-  #[inline]
-  pub fn depth_slot(&self) -> &DS::DepthTexture {
-    &self.depth_slot
-  }
-}
-
-fn get_status() -> Result<(), IncompleteReason> {
-  let status = unsafe { gl::CheckFramebufferStatus(gl::FRAMEBUFFER) };
-
-  match status {
-    gl::FRAMEBUFFER_COMPLETE => Ok(()),
-    gl::FRAMEBUFFER_UNDEFINED => Err(IncompleteReason::Undefined),
-    gl::FRAMEBUFFER_INCOMPLETE_ATTACHMENT => Err(IncompleteReason::IncompleteAttachment),
-    gl::FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT => Err(IncompleteReason::MissingAttachment),
-    gl::FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER => Err(IncompleteReason::IncompleteDrawBuffer),
-    gl::FRAMEBUFFER_INCOMPLETE_READ_BUFFER => Err(IncompleteReason::IncompleteReadBuffer),
-    gl::FRAMEBUFFER_UNSUPPORTED => Err(IncompleteReason::Unsupported),
-    gl::FRAMEBUFFER_INCOMPLETE_MULTISAMPLE => Err(IncompleteReason::IncompleteMultisample),
-    gl::FRAMEBUFFER_INCOMPLETE_LAYER_TARGETS => Err(IncompleteReason::IncompleteLayerTargets),
-    _ => panic!("unknown OpenGL framebuffer incomplete status! status={}", status),
-  }
+  fn depth_slot(&self) -> &DS::DepthTexture;
 }
 
 /// A framebuffer has a color slot. A color slot can either be empty (the *unit* type is used,`()`)
 /// or several color formats.
-pub unsafe trait ColorSlot<L, D>
+pub unsafe trait ColorSlot<C, L, D>
 where L: Layerable,
       D: Dimensionable,
       D::Size: Copy {
