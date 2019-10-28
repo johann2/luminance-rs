@@ -30,15 +30,15 @@
 
 use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use crate::context::GraphicsContext;
 use crate::pixel::{ColorPixel, DepthPixel, PixelFormat, RenderablePixel};
-use crate::texture::{Dim2, Dimensionable, Flat, Layerable, Texture, TextureError};
+use crate::texture::{Dim2, Dimensionable, Flat, Layerable, Texture};
 
 /// Framebuffer with static layering, dimension, access and slots formats.
-///
+//
 /// A `Framebuffer` is a *GPU* special object used to render to. Because framebuffers have a
 /// *layering* property, it’s possible to have regular render and *layered rendering*. The dimension
 /// of a framebuffer makes it possible to render to 1D, 2D, 3D and cubemaps.
@@ -51,9 +51,12 @@ use crate::texture::{Dim2, Dimensionable, Flat, Layerable, Texture, TextureError
 /// A framebuffer can have zero or several color slots and it can have zero or one depth slot. If
 /// you use several color slots, you’ll be performing what’s called *MRT* (*M* ultiple *R* ender
 /// *T* argets), enabling to render to several textures at once.
-pub trait Framebuffer<C, L, D, CS, DS>
-where CS: ColorSlot<L, D>,
-      DS: DepthSlot<L, D> {
+pub trait Framebuffer<C, L, D, CS, DS>: Sized
+where
+  D: Dimensionable,
+  CS: ColorSlot<C, L, D>,
+  DS: DepthSlot<C, L, D>,
+{
   type BackBuffer;
 
   type Err;
@@ -61,18 +64,14 @@ where CS: ColorSlot<L, D>,
   /// Get the back buffer with the given dimension.
   fn back_buffer(
     ctx: &mut C,
-    size: <Dim2 as Dimensionable>::Size
-  ) -> Result<BackBuffer, Self::Err>;
+    size: <Dim2 as Dimensionable>::Size,
+  ) -> Result<Self::BackBuffer, Self::Err>;
 
   /// Create a new framebuffer.
   ///
   /// You’re always handed at least the base level of the texture. If you require any *additional*
   /// levels, you can pass the number via the `mipmaps` parameter.
-  fn new(
-    ctx: &mut C,
-    size: D::Size,
-    mipmaps: usize,
-  ) -> Result<Self, Self::Err>;
+  fn new(ctx: &mut C, size: D::Size, mipmaps: usize) -> Result<Self, Self::Err>;
 
   /// Width of the framebuffer.
   fn width(&self) -> u32;
@@ -89,172 +88,90 @@ where CS: ColorSlot<L, D>,
 
 /// A framebuffer has a color slot. A color slot can either be empty (the *unit* type is used,`()`)
 /// or several color formats.
-pub unsafe trait ColorSlot<C, L, D>
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy {
+pub unsafe trait ColorSlot<C, L, D> {
   /// Textures associated with this color slot.
   type ColorTextures;
 
   /// Turn a color slot into a list of pixel formats.
   fn color_formats() -> Vec<PixelFormat>;
-
-  /// Reify a list of raw textures.
-  fn reify_textures<C, I>(
-    ctx: &mut C,
-    size: D::Size,
-    mipmaps: usize,
-    textures: &mut I,
-  ) -> Self::ColorTextures
-  where
-    C: GraphicsContext,
-    I: Iterator<Item = GLuint>;
 }
 
-unsafe impl<L, D> ColorSlot<L, D> for ()
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy {
+unsafe impl<C, L, D> ColorSlot<C, L, D> for () {
   type ColorTextures = ();
 
   fn color_formats() -> Vec<PixelFormat> {
     Vec::new()
   }
-
-  fn reify_textures<C, I>(_: &mut C, _: D::Size, _: usize, _: &mut I) -> Self::ColorTextures
-  where
-    C: GraphicsContext,
-    I: Iterator<Item = GLuint> {
-  }
 }
 
-unsafe impl<L, D, P> ColorSlot<L, D> for P
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy,
-      Self: ColorPixel + RenderablePixel {
+unsafe impl<C, L, D, P> ColorSlot for P
+where
+  Self: ColorPixel + RenderablePixel,
+  L: Layerable,
+  D: Dimensionable,
+{
   type ColorTextures = Texture<L, D, P>;
 
   fn color_formats() -> Vec<PixelFormat> {
     vec![P::pixel_format()]
   }
-
-  fn reify_textures<C, I>(ctx: &mut C, size: D::Size, mipmaps: usize, textures: &mut I) -> Self::ColorTextures
-  where C: GraphicsContext,
-        I: Iterator<Item = GLuint> {
-    let color_texture = textures.next().unwrap();
-
-    unsafe {
-      let raw = RawTexture::new(
-        ctx.state().clone(),
-        color_texture,
-        opengl_target(L::layering(), D::dim()),
-      );
-      Texture::from_raw(raw, size, mipmaps)
-    }
-  }
 }
 
-macro_rules! impl_color_slot_tuple {
-  ($($pf:ident),*) => {
-    unsafe impl<L, D, $($pf),*> ColorSlot<L, D> for ($($pf),*)
-    where L: Layerable,
-          D: Dimensionable,
-          D::Size: Copy,
-          $(
-            $pf: ColorPixel + RenderablePixel
-          ),* {
-      type ColorTextures = ($(Texture<L, D, $pf>),*);
-
-      fn color_formats() -> Vec<PixelFormat> {
-        vec![$($pf::pixel_format()),*]
-      }
-
-      fn reify_textures<C, I>(
-        ctx: &mut C,
-        size: D::Size,
-        mipmaps: usize,
-        textures: &mut I
-      ) -> Self::ColorTextures
-      where C: GraphicsContext,
-            I: Iterator<Item = GLuint> {
-        ($($pf::reify_textures(ctx, size, mipmaps, textures)),*)
-      }
-    }
-  }
-}
-
-macro_rules! impl_color_slot_tuples {
-  ($first:ident , $second:ident) => {
-    // stop at pairs
-    impl_color_slot_tuple!($first, $second);
-  };
-
-  ($first:ident , $($pf:ident),*) => {
-    // implement the same list without the first type (reduced by one)
-    impl_color_slot_tuples!($($pf),*);
-    // implement the current list
-    impl_color_slot_tuple!($first, $($pf),*);
-  };
-}
-
-impl_color_slot_tuples!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
-
-/// A framebuffer has a depth slot. A depth slot can either be empty (the *unit* type is used, `()`)
-/// or a single depth format.
-pub unsafe trait DepthSlot<L, D>
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy {
-  /// Texture associated with this color slot.
-  type DepthTexture;
-
-  /// Turn a depth slot into a pixel format.
-  fn depth_format() -> Option<PixelFormat>;
-
-  /// Reify a raw textures into a depth slot.
-  fn reify_texture<C, T>(ctx: &mut C, size: D::Size, mipmaps: usize, texture: T) -> Self::DepthTexture
-  where C: GraphicsContext,
-        T: Into<Option<GLuint>>;
-}
-
-unsafe impl<L, D> DepthSlot<L, D> for ()
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy {
-  type DepthTexture = ();
-
-  fn depth_format() -> Option<PixelFormat> {
-    None
-  }
-
-  fn reify_texture<C, T>(_: &mut C, _: D::Size, _: usize, _: T) -> Self::DepthTexture
-  where C: GraphicsContext,
-        T: Into<Option<GLuint>> {
-  }
-}
-
-unsafe impl<L, D, P> DepthSlot<L, D> for P
-where L: Layerable,
-      D: Dimensionable,
-      D::Size: Copy,
-      P: DepthPixel {
-  type DepthTexture = Texture<L, D, P>;
-
-  fn depth_format() -> Option<PixelFormat> {
-    Some(P::pixel_format())
-  }
-
-  fn reify_texture<C, T>(ctx: &mut C, size: D::Size, mipmaps: usize, texture: T) -> Self::DepthTexture
-  where C: GraphicsContext,
-        T: Into<Option<GLuint>> {
-    unsafe {
-      let raw = RawTexture::new(
-        ctx.state().clone(),
-        texture.into().unwrap(),
-        opengl_target(L::layering(), D::dim()),
-      );
-      Texture::from_raw(raw, size, mipmaps)
-    }
-  }
-}
+//       macro_rules! impl_color_slot_tuple {
+//         ($($pf:ident),*) => {
+//           unsafe impl<C, L, D, $($pf),*> ColorSlot for ($($pf),*)
+//           where
+//             $(
+//               $pf: ColorPixel + RenderablePixel
+//             ),*,
+//             L: Layerable,
+//             D: Dimensionable,
+//           {
+//             //type ColorTextures = ( $(  ),* );
+//             fn color_formats() -> Vec<PixelFormat> {
+//               vec![$($pf::pixel_format()),*]
+//             }
+//           }
+//         }
+//       }
+//
+//       macro_rules! impl_color_slot_tuples {
+//         ($first:ident , $second:ident) => {
+//           // stop at pairs
+//           impl_color_slot_tuple!($first, $second);
+//         };
+//
+//         ($first:ident , $($pf:ident),*) => {
+//           // implement the same list without the first type (reduced by one)
+//           impl_color_slot_tuples!($($pf),*);
+//           // implement the current list
+//           impl_color_slot_tuple!($first, $($pf),*);
+//         };
+//       }
+//
+//       impl_color_slot_tuples!(P0, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
+//
+//       /// A framebuffer has a depth slot. A depth slot can either be empty (the *unit* type is used, `()`)
+//       /// or a single depth format.
+//       pub unsafe trait DepthSlot {
+//         /// Texture associated with this color slot.
+//         type DepthTexture;
+//
+//         /// Turn a depth slot into a pixel format.
+//         fn depth_format() -> Option<PixelFormat>;
+//       }
+//
+//       unsafe impl DepthSlot for () {
+//         fn depth_format() -> Option<PixelFormat> {
+//           None
+//         }
+//       }
+//
+//       unsafe impl<P> DepthSlot for P
+//       where
+//         P: DepthPixel,
+//       {
+//         fn depth_format() -> Option<PixelFormat> {
+//           Some(P::pixel_format())
+//         }
+//       }
