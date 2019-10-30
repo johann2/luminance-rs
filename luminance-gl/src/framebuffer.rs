@@ -31,6 +31,7 @@
 use gl;
 use gl::types::*;
 use luminance::context::GraphicsContext;
+use luminance::framebuffer::{ColorSlot, DepthSlot};
 use luminance::pixel::{ColorPixel, DepthPixel, PixelFormat, RenderablePixel};
 use luminance::texture::{Dim2, Dimensionable, Flat, Layerable};
 use std::cell::RefCell;
@@ -118,8 +119,8 @@ pub struct Framebuffer<L, D, CS, DS>
 where L: Layerable,
       D: Dimensionable,
       D::Size: Copy,
-      CS: ColorSlot<L, D>,
-      DS: DepthSlot<L, D> {
+      CS: ColorSlot,
+      DS: DepthSlot {
   handle: GLuint,
   renderbuffer: Option<GLuint>,
   w: u32,
