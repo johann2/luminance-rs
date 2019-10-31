@@ -25,7 +25,7 @@ provides information about the internal architecture and the public API yielded 
   * [Textures](#textures)
     * [Pixels](#pixels)
   * [Graphics pipelines](#graphics-pipelines)
-  * [The driver architecture](#the-driver-architecture)
+  * [The backend architecture](#the-backend-architecture)
     * [On distributing implementations](#on-distributing-implementations)
 * [Rationale](#rationale)
   * [Release candidates](#release-candidates)
@@ -417,6 +417,9 @@ a gathering of several information:
 - Its sampler type, which allows to create uniform interfaces that will work with several flavours
   of pixels without having to create one interface for each.
 
+Pixel types are used in several places: framebuffers _color slots_ and _depth slots_, textures,
+shader uniform interfaces, etc.
+
 ### Graphics pipelines
 
 The most opinionated part of [luminance] might be the way *graphics pipelines* are handled. The idea
@@ -425,16 +428,17 @@ dependency graph, some resources, in order to be used or rendered to or whatever
 resources to be available, done or in use too.
 
 When [luminance] was imagined, it was using *OpenGL 3.3* in mind (even older and younger versions in
-the [Haskell version]). Within such a graphics API, resources need to be available (bound) while
-some other resources are performing some work. For instance, in order to render, you need a shader
-and a framebuffer to be bound. But you might also imagine that you will want to use several shaders
-(to perform several kind of renders) into the same framebuffer. The other way around is also
-possible: you might want to render with the same shader into several, different framebuffers.
+the [Haskell version], ranging from 2.0 to 4.5). Within such a graphics API, resources need to be
+available (bound) while some other resources are performing some work. For instance, in order to
+render, you need a shader and a framebuffer to be bound. But you might also imagine that you will
+want to use several shaders (to perform several kind of renders) into the same framebuffer. The other
+way around is also possible: you might want to render with the same shader into several, different
+framebuffers.
 
 In [luminance], the control-flow of your code is used as a dependency graph. Because a typical code
-AST has scopes, scopes are used to naturally implement a scoped resource handling. What it means is
-that when you start using a framebuffer, you are given an object that will live until the
-framebuffer’s use lives, creating a virtual scope for you to play with one or several shaders.
+AST has scopes, scopes are used to naturally implement scoped resource handling. What it means is
+that when you start using a framebuffer, you are given an object that will live until you don’t actually
+need it anymore, creating a virtual scope for you to play with one or several shaders.
 
 You typically have this hierarchy of scopes:
 
@@ -462,7 +466,7 @@ at least two and play around with the *color slots* and/or *depth slots* of the 
 Introducing a render with a shader first allows to share shaders for tessellations. A shader will
 shade future renders into the framebuffer you used to create the pipeline object. Using a pipeline
 creates a scoped object called a *shading gate*. Shading gates are the only way to create subsequent
-renders. Shading gates also provide you your *uniform interface* via a *query* object. That query
+renders. Shading gates also provide you with your *uniform interface* via a *query* object. That query
 object allows you to access the uniform interface to customize your shader’s behavior or dynamically
 change uniform values if you prefer.
 
@@ -475,7 +479,7 @@ dependency graph you will use. A tessellation gate is used to render tessellatio
 via the use of *tessellation slices*.
 
 All the gate objects are passed to subsequent part of the dependency graph via arguments to lambdas.
-That allows lifetimes to be captured and prevent you to leak objects out and break the unsafe
+That allows lifetimes to be captured and prevents you to leak objects out and break the unsafe
 graphics API.
 
 At any point, you can use special extern objects in your pipeline. Tessellations are handled at the
@@ -487,12 +491,11 @@ placing some calls at any place you want. Those objects are currently:
 
 Those resources can then be used to customize renders from anywhere in the dependency graph.
 
-### The driver architecture
+### The backend architecture
 
-The driver architecture is a new and experimental feature of [luminance] that is the most important
-change in the 1.0 version. Drivers are a way to abstract everything that was discussed so far
-behind a simpler, type-unsafe and type-erased interface, in order to implement all the features
-discussed so far.
+The backend architecture is a new feature of [luminance] that is the most important change in the
+1.0 version. Drivers are a way to abstract everything that was discussed so far behind a simpler,
+type-unsafe and type-erased interface, in order to implement all the features discussed so far.
 
 The way drivers work is the following: every namespace of feature is assigned a trait, that must be
 implemented to use the feature. For instance, tessellations are set behind the `TessDriver` trait.
