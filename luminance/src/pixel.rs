@@ -71,6 +71,8 @@ impl PixelFormat {
       Format::RGB(_, _, _) => 3,
       Format::RGBA(_, _, _, _) => 4,
       Format::Depth(_) => 1,
+      Format::SRGB => 3,
+      Format::SRGBA => 4,
     }
   }
 }
@@ -106,6 +108,10 @@ pub enum Format {
   RGBA(Size, Size, Size, Size),
   /// Holds a depth channel.
   Depth(Size),
+  /// Holds red, green and blue channels in sRGB colorspace
+  SRGB,
+  /// Holds red, green and blue channels in sRGB colorspace with linear alpha channel
+  SRGBA,
 }
 
 impl Format {
@@ -117,6 +123,8 @@ impl Format {
       Format::RGB(r, g, b) => r.bits() + g.bits() + b.bits(),
       Format::RGBA(r, g, b, a) => r.bits() + g.bits() + b.bits() + a.bits(),
       Format::Depth(d) => d.bits(),
+      Format::SRGB => 24,
+      Format::SRGBA => 32,
     };
 
     bits / 8
@@ -880,12 +888,73 @@ impl_Pixel!(
 impl_ColorPixel!(R11G11B10F);
 impl_RenderablePixel!(R11G11B10F);
 
+
 /// A depth 32-bit floating pixel format.
 #[derive(Clone, Copy, Debug)]
 pub struct Depth32F;
 
 impl_Pixel!(Depth32F, f32, f32, Floating, Format::Depth(Size::ThirtyTwo));
 impl_DepthPixel!(Depth32F);
+
+/// A red, green and blue 8-bit unsigned integral pixel format with hardware sRGB conversion.
+#[derive(Clone, Copy, Debug)]
+pub struct SRGB8UI;
+
+impl_Pixel!(
+  SRGB8UI,
+  (u8, u8, u8),
+  u8,
+  Unsigned,
+  Format::SRGB
+);
+impl_ColorPixel!(SRGB8UI);
+impl_RenderablePixel!(SRGB8UI);
+
+/// A red, green, blue and alpha 8-bit unsigned integral pixel format with hardware sRGB conversion.
+#[derive(Clone, Copy, Debug)]
+pub struct SRGBA8UI;
+
+impl_Pixel!(
+  SRGBA8UI,
+  (u8, u8, u8, u8),
+  u8,
+  Unsigned,
+  Format::SRGBA
+);
+impl_ColorPixel!(SRGBA8UI);
+impl_RenderablePixel!(SRGBA8UI);
+
+/// A red, green and blue 8-bit unsigned integral pixel format with hardware sRGB conversion, accessed as normalized
+/// floating pixels.
+#[derive(Clone, Copy, Debug)]
+pub struct NormSRGB8UI;
+
+impl_Pixel!(
+  NormSRGB8UI,
+  (u8, u8, u8),
+  u8,
+  NormUnsigned,
+  Format::SRGB
+);
+impl_ColorPixel!(NormSRGB8UI);
+impl_RenderablePixel!(NormSRGB8UI);
+
+/// A red, green and blue 8-bit unsigned integral pixel format with hardware sRGB conversion, accessed as normalized
+/// floating pixels.
+#[derive(Clone, Copy, Debug)]
+pub struct NormSRGBA8UI;
+
+impl_Pixel!(
+  NormSRGBA8UI,
+  (u8, u8, u8, u8),
+  u8,
+  NormUnsigned,
+  Format::SRGBA
+);
+impl_ColorPixel!(NormSRGBA8UI);
+impl_RenderablePixel!(NormSRGBA8UI);
+
+
 
 // OpenGL format, internal sized-format and type.
 pub(crate) fn opengl_pixel_format(pf: PixelFormat) -> Option<(GLenum, GLenum, GLenum)> {
@@ -961,6 +1030,13 @@ pub(crate) fn opengl_pixel_format(pf: PixelFormat) -> Option<(GLenum, GLenum, GL
     (Format::RGBA(Size::ThirtyTwo, Size::ThirtyTwo, Size::ThirtyTwo, Size::ThirtyTwo), Type::Floating) => Some((gl::RGBA, gl::RGBA32F, gl::FLOAT)),
 
     (Format::Depth(Size::ThirtyTwo), Type::Floating) => Some((gl::DEPTH_COMPONENT, gl::DEPTH_COMPONENT32F, gl::FLOAT)),
+
+    (Format::SRGB, Type::NormUnsigned) => Some((gl::RGB, gl::SRGB8, gl::UNSIGNED_BYTE)),
+    (Format::SRGB, Type::Unsigned) => Some((gl::RGB_INTEGER, gl::SRGB8, gl::UNSIGNED_BYTE)),
+
+    (Format::SRGBA, Type::NormUnsigned) => Some((gl::RGBA, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
+    (Format::SRGBA, Type::Unsigned) => Some((gl::RGBA_INTEGER, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
+
 
     _ => None
   }
