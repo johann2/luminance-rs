@@ -334,24 +334,34 @@ where L: 'a + Layerable,
       (PxType::Integral, Dim::Dim1) => Type::ISampler1D,
       (PxType::Unsigned, Dim::Dim1) => Type::UISampler1D,
       (PxType::Floating, Dim::Dim1) => Type::Sampler1D,
+      (PxType::NormUnsignedSrgb, Dim::Dim1) => Type::Sampler1D,
+      (PxType::UnsignedSrgb, Dim::Dim1) => Type::UISampler1D,
 
       (PxType::NormIntegral, Dim::Dim2) => Type::Sampler2D,
       (PxType::NormUnsigned, Dim::Dim2) => Type::Sampler2D,
       (PxType::Integral, Dim::Dim2) => Type::ISampler2D,
       (PxType::Unsigned, Dim::Dim2) => Type::UISampler2D,
       (PxType::Floating, Dim::Dim2) => Type::Sampler2D,
+      (PxType::NormUnsignedSrgb, Dim::Dim2) => Type::Sampler2D,
+      (PxType::UnsignedSrgb, Dim::Dim2) => Type::UISampler2D,
+
 
       (PxType::NormIntegral, Dim::Dim3) => Type::Sampler3D,
       (PxType::NormUnsigned, Dim::Dim3) => Type::Sampler3D,
       (PxType::Integral, Dim::Dim3) => Type::ISampler3D,
       (PxType::Unsigned, Dim::Dim3) => Type::UISampler3D,
       (PxType::Floating, Dim::Dim3) => Type::Sampler3D,
+      (PxType::NormUnsignedSrgb, Dim::Dim3) => Type::Sampler3D,
+      (PxType::UnsignedSrgb, Dim::Dim3) => Type::UISampler3D,
 
       (PxType::NormIntegral, Dim::Cubemap) => Type::Cubemap,
       (PxType::NormUnsigned, Dim::Cubemap) => Type::Cubemap,
       (PxType::Integral, Dim::Cubemap) => Type::ICubemap,
       (PxType::Unsigned, Dim::Cubemap) => Type::UICubemap,
       (PxType::Floating, Dim::Cubemap) => Type::Cubemap,
+      (PxType::NormUnsignedSrgb, Dim::Cubemap) => Type::Cubemap,
+      (PxType::UnsignedSrgb, Dim::Cubemap) => Type::UICubemap,
+
     }
   }
 }

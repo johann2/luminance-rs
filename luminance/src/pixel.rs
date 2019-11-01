@@ -71,8 +71,6 @@ impl PixelFormat {
       Format::RGB(_, _, _) => 3,
       Format::RGBA(_, _, _, _) => 4,
       Format::Depth(_) => 1,
-      Format::SRGB => 3,
-      Format::SRGBA => 4,
     }
   }
 }
@@ -90,6 +88,11 @@ pub enum Type {
   Unsigned,
   /// Floating-point pixel type.
   Floating,
+  /// Normalized unsigned integral pixel type with gamma correction.
+  NormUnsignedSrgb,
+  /// Unsigned integral pixel type with gamma correction.
+  UnsignedSrgb,
+
 }
 
 /// Format of a pixel.
@@ -108,10 +111,6 @@ pub enum Format {
   RGBA(Size, Size, Size, Size),
   /// Holds a depth channel.
   Depth(Size),
-  /// Holds red, green and blue channels in sRGB colorspace
-  SRGB,
-  /// Holds red, green and blue channels in sRGB colorspace with linear alpha channel
-  SRGBA,
 }
 
 impl Format {
@@ -123,8 +122,6 @@ impl Format {
       Format::RGB(r, g, b) => r.bits() + g.bits() + b.bits(),
       Format::RGBA(r, g, b, a) => r.bits() + g.bits() + b.bits() + a.bits(),
       Format::Depth(d) => d.bits(),
-      Format::SRGB => 24,
-      Format::SRGBA => 32,
     };
 
     bits / 8
@@ -208,6 +205,27 @@ unsafe impl SamplerType for Floating {
     Type::Floating
   }
 }
+
+/// The unsigned integral sRGB sample type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct UnsignedSrgb;
+
+unsafe impl SamplerType for UnsignedSrgb {
+    fn sample_type() -> Type {
+        Type::UnsignedSrgb
+    }
+}
+
+/// The unsigned integral sRGB sample type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct NormUnsignedSrgb;
+
+unsafe impl SamplerType for NormUnsignedSrgb{
+    fn sample_type() -> Type {
+        Type::NormUnsignedSrgb
+    }
+}
+
 
 macro_rules! impl_Pixel {
   ($t:ty, $encoding:ty, $raw_encoding:ty, $encoding_ty:ident, $format:expr) => {
@@ -904,8 +922,8 @@ impl_Pixel!(
   SRGB8UI,
   (u8, u8, u8),
   u8,
-  Unsigned,
-  Format::SRGB
+  UnsignedSrgb,
+  Format::RGB(Size::Eight, Size::Eight, Size::Eight)
 );
 impl_ColorPixel!(SRGB8UI);
 impl_RenderablePixel!(SRGB8UI);
@@ -918,8 +936,8 @@ impl_Pixel!(
   SRGBA8UI,
   (u8, u8, u8, u8),
   u8,
-  Unsigned,
-  Format::SRGBA
+  UnsignedSrgb,
+  Format::RGBA(Size::Eight, Size::Eight, Size::Eight,Size::Eight)
 );
 impl_ColorPixel!(SRGBA8UI);
 impl_RenderablePixel!(SRGBA8UI);
@@ -933,8 +951,8 @@ impl_Pixel!(
   NormSRGB8UI,
   (u8, u8, u8),
   u8,
-  NormUnsigned,
-  Format::SRGB
+  NormUnsignedSrgb,
+  Format::RGB(Size::Eight, Size::Eight, Size::Eight)
 );
 impl_ColorPixel!(NormSRGB8UI);
 impl_RenderablePixel!(NormSRGB8UI);
@@ -948,8 +966,8 @@ impl_Pixel!(
   NormSRGBA8UI,
   (u8, u8, u8, u8),
   u8,
-  NormUnsigned,
-  Format::SRGBA
+  NormUnsignedSrgb,
+  Format::RGBA(Size::Eight, Size::Eight, Size::Eight,Size::Eight)
 );
 impl_ColorPixel!(NormSRGBA8UI);
 impl_RenderablePixel!(NormSRGBA8UI);
@@ -1031,13 +1049,11 @@ pub(crate) fn opengl_pixel_format(pf: PixelFormat) -> Option<(GLenum, GLenum, GL
 
     (Format::Depth(Size::ThirtyTwo), Type::Floating) => Some((gl::DEPTH_COMPONENT, gl::DEPTH_COMPONENT32F, gl::FLOAT)),
 
-    (Format::SRGB, Type::NormUnsigned) => Some((gl::RGB, gl::SRGB8, gl::UNSIGNED_BYTE)),
-    (Format::SRGB, Type::Unsigned) => Some((gl::RGB_INTEGER, gl::SRGB8, gl::UNSIGNED_BYTE)),
+    (Format::RGBA(Size::Eight, Size::Eight, Size::Eight, Size::Eight), Type::NormUnsignedSrgb) => Some((gl::RGBA, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
+    (Format::RGBA(Size::Eight, Size::Eight, Size::Eight, Size::Eight), Type::UnsignedSrgb) => Some((gl::RGBA_INTEGER, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
+    (Format::RGB(Size::Eight, Size::Eight, Size::Eight), Type::NormUnsignedSrgb) => Some((gl::RGB, gl::SRGB8, gl::UNSIGNED_BYTE)),
+    (Format::RGB(Size::Eight, Size::Eight, Size::Eight), Type::UnsignedSrgb) => Some((gl::RGB_INTEGER, gl::SRGB8, gl::UNSIGNED_BYTE)),
 
-    (Format::SRGBA, Type::NormUnsigned) => Some((gl::RGBA, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
-    (Format::SRGBA, Type::Unsigned) => Some((gl::RGBA_INTEGER, gl::SRGB8_ALPHA8, gl::UNSIGNED_BYTE)),
-
-
-    _ => None
+      _ => None
   }
 }
